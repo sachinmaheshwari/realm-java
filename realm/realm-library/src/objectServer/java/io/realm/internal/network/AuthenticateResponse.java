@@ -25,6 +25,7 @@ import java.util.Locale;
 import io.realm.ErrorCode;
 import io.realm.ObjectServerError;
 import io.realm.internal.objectserver.Token;
+import io.realm.internal.objectserver.SyncWorker;
 import io.realm.log.RealmLog;
 import okhttp3.Response;
 
@@ -35,9 +36,11 @@ public class AuthenticateResponse extends AuthServerResponse {
 
     private static final String JSON_FIELD_ACCESS_TOKEN = "access_token";
     private static final String JSON_FIELD_REFRESH_TOKEN = "refresh_token";
+    private static final String JSON_FIELD_SYNC_WORKER = "sync_worker";
 
     private final Token accessToken;
     private final Token refreshToken;
+    private final SyncWorker syncWorker;
 
     /**
      * Helper method for creating the proper Authenticate response. This method will set the appropriate error
@@ -106,10 +109,10 @@ public class AuthenticateResponse extends AuthServerResponse {
      * @param error the network or I/O error.
      */
     private AuthenticateResponse(ObjectServerError error) {
-        RealmLog.debug("AuthenticateResponse - Error: " + error);
         setError(error);
         this.accessToken = null;
         this.refreshToken = null;
+        this.syncWorker = null;
     }
 
     /**
@@ -122,30 +125,33 @@ public class AuthenticateResponse extends AuthServerResponse {
         ObjectServerError error;
         Token accessToken;
         Token refreshToken;
-        String message;
+        SyncWorker syncWorker;
+        String debugMessage;
         try {
             JSONObject obj = new JSONObject(serverResponse);
-            accessToken = obj.has(JSON_FIELD_ACCESS_TOKEN) ?
-                    Token.from(obj.getJSONObject(JSON_FIELD_ACCESS_TOKEN)) : null;
-            refreshToken = obj.has(JSON_FIELD_REFRESH_TOKEN) ?
-                    Token.from(obj.getJSONObject(JSON_FIELD_REFRESH_TOKEN)) : null;
+            accessToken = obj.has(JSON_FIELD_ACCESS_TOKEN) ? Token.from(obj.getJSONObject(JSON_FIELD_ACCESS_TOKEN)) : null;
+            refreshToken = obj.has(JSON_FIELD_REFRESH_TOKEN) ? Token.from(obj.getJSONObject(JSON_FIELD_REFRESH_TOKEN)) : null;
+            syncWorker = obj.has(JSON_FIELD_SYNC_WORKER) ? SyncWorker.from(obj.getJSONObject(JSON_FIELD_SYNC_WORKER)) : null;
             error = null;
             if (accessToken == null) {
-                message = "accessToken = null";
+                debugMessage = "accessToken = null";
             } else {
-                message = String.format(Locale.US, "Identity %s; Path %s", accessToken.identity(), accessToken.path());
+                debugMessage = String.format(Locale.US, "Identity %s; Path %s", accessToken.identity(), accessToken.path());
             }
         } catch (JSONException ex) {
             accessToken = null;
             refreshToken = null;
+            syncWorker = null;
+            String exceptionMessage = String.format(Locale.US, "Server response could not be parsed as JSON:%n%s", serverResponse);
             //noinspection ThrowableInstanceNeverThrown
-            error = new ObjectServerError(ErrorCode.JSON_EXCEPTION, ex);
-            message = String.format(Locale.US, "Error %s", error.getErrorMessage());
+            error = new ObjectServerError(ErrorCode.JSON_EXCEPTION, exceptionMessage, ex);
+            debugMessage = String.format(Locale.US, "Error %s", error.getErrorMessage());
         }
-        RealmLog.debug("AuthenticateResponse. " + message);
+        RealmLog.debug("AuthenticateResponse. " + debugMessage);
         setError(error);
         this.accessToken = accessToken;
         this.refreshToken = refreshToken;
+        this.syncWorker = syncWorker;
     }
 
     public Token getAccessToken() {
@@ -156,4 +162,7 @@ public class AuthenticateResponse extends AuthServerResponse {
         return refreshToken;
     }
 
+    public SyncWorker getSyncWorker() {
+        return syncWorker;
+    }
 }

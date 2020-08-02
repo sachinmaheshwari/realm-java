@@ -51,7 +51,7 @@ import io.realm.rx.CollectionChange;
  * <p>
  * Unmanaged RealmLists can be created by the user and can contain both managed and unmanaged RealmObjects. This is
  * useful when dealing with JSON deserializers like GSON or other frameworks that inject values into a class.
- * Unmanaged elements in this list can be added to a Realm using the {@link Realm#copyToRealm(Iterable)} method.
+ * Unmanaged elements in this list can be added to a Realm using the {@link Realm#copyToRealm(Iterable, ImportFlag...)} method.
  * <p>
  * {@link RealmList} can contain more elements than {@code Integer.MAX_VALUE}.
  * In that case, you can access only first {@code Integer.MAX_VALUE} elements in it.
@@ -80,7 +80,7 @@ public class RealmList<E> extends AbstractList<E> implements OrderedRealmCollect
      * This effectively makes the RealmList function as a {@link java.util.ArrayList} and it is not possible to query
      * the objects in this state.
      * <p>
-     * Use {@link io.realm.Realm#copyToRealm(Iterable)} to properly persist its elements in Realm.
+     * Use {@link io.realm.Realm#copyToRealm(Iterable, ImportFlag...)} to properly persist its elements in Realm.
      */
     public RealmList() {
         realm = null;
@@ -93,7 +93,7 @@ public class RealmList<E> extends AbstractList<E> implements OrderedRealmCollect
      * A RealmList in unmanaged mode function as a {@link java.util.ArrayList} and it is not possible to query the
      * objects in this state.
      * <p>
-     * Use {@link io.realm.Realm#copyToRealm(Iterable)} to properly persist all unmanaged elements in Realm.
+     * Use {@link io.realm.Realm#copyToRealm(Iterable, ImportFlag...)} to properly persist all unmanaged elements in Realm.
      *
      * @param objects initial objects in the list.
      */
@@ -150,6 +150,36 @@ public class RealmList<E> extends AbstractList<E> implements OrderedRealmCollect
      * {@inheritDoc}
      */
     @Override
+    public RealmList<E> freeze() {
+        if (isManaged()) {
+            if (!isValid()) {
+                throw new IllegalStateException("Only valid, managed RealmLists can be frozen.");
+            }
+
+            BaseRealm frozenRealm = realm.freeze();
+            OsList frozenList = getOsList().freeze(frozenRealm.sharedRealm);
+            if (className != null) {
+                return new RealmList<>(className, frozenList, frozenRealm);
+            } else {
+                return new RealmList<>(clazz, frozenList, frozenRealm);
+            }
+        } else {
+            throw new UnsupportedOperationException(ONLY_IN_MANAGED_MODE_MESSAGE);
+        }
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public boolean isFrozen() {
+        return (realm != null && realm.isFrozen());
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
     public boolean isManaged() {
         return realm != null;
     }
@@ -165,10 +195,10 @@ public class RealmList<E> extends AbstractList<E> implements OrderedRealmCollect
      * <ol>
      * <li><b>Unmanaged RealmLists</b>: It is possible to add both managed and unmanaged objects. If adding managed
      * objects to an unmanaged RealmList they will not be copied to the Realm again if using
-     * {@link Realm#copyToRealm(RealmModel)} afterwards.</li>
+     * {@link Realm#copyToRealm(RealmModel, ImportFlag...)} afterwards.</li>
      * <li><b>Managed RealmLists</b>: It is possible to add unmanaged objects to a RealmList that is already managed. In
-     * that case the object will transparently be copied to Realm using {@link Realm#copyToRealm(RealmModel)}
-     * or {@link Realm#copyToRealmOrUpdate(RealmModel)} if it has a primary key.</li>
+     * that case the object will transparently be copied to Realm using {@link Realm#copyToRealm(RealmModel, ImportFlag...)}
+     * or {@link Realm#copyToRealmOrUpdate(RealmModel, ImportFlag...)} if it has a primary key.</li>
      * </ol>
      *
      * @param location the index at which to insert.
@@ -193,10 +223,10 @@ public class RealmList<E> extends AbstractList<E> implements OrderedRealmCollect
      * <ol>
      * <li><b>Unmanaged RealmLists</b>: It is possible to add both managed and unmanaged objects. If adding managed
      * objects to an unmanaged RealmList they will not be copied to the Realm again if using
-     * {@link Realm#copyToRealm(RealmModel)} afterwards.</li>
+     * {@link Realm#copyToRealm(RealmModel, ImportFlag...)} afterwards.</li>
      * <li><b>Managed RealmLists</b>: It is possible to add unmanaged objects to a RealmList that is already managed. In
-     * that case the object will transparently be copied to Realm using {@link Realm#copyToRealm(RealmModel)}
-     * or {@link Realm#copyToRealmOrUpdate(RealmModel)} if it has a primary key.</li>
+     * that case the object will transparently be copied to Realm using {@link Realm#copyToRealm(RealmModel, ImportFlag...)}
+     * or {@link Realm#copyToRealmOrUpdate(RealmModel, ImportFlag...)} if it has a primary key.</li>
      * </ol>
      *
      * @param object the object to add.
@@ -220,10 +250,10 @@ public class RealmList<E> extends AbstractList<E> implements OrderedRealmCollect
      * <ol>
      * <li><b>Unmanaged RealmLists</b>: It is possible to add both managed and unmanaged objects. If adding managed
      * objects to an unmanaged RealmList they will not be copied to the Realm again if using
-     * {@link Realm#copyToRealm(RealmModel)} afterwards.</li>
+     * {@link Realm#copyToRealm(RealmModel, ImportFlag...)} afterwards.</li>
      * <li><b>Managed RealmLists</b>: It is possible to add unmanaged objects to a RealmList that is already managed.
-     * In that case the object will transparently be copied to Realm using {@link Realm#copyToRealm(RealmModel)} or
-     * {@link Realm#copyToRealmOrUpdate(RealmModel)} if it has a primary key.</li>
+     * In that case the object will transparently be copied to Realm using {@link Realm#copyToRealm(RealmModel, ImportFlag...)} or
+     * {@link Realm#copyToRealmOrUpdate(RealmModel, ImportFlag...)} if it has a primary key.</li>
      * </ol>
      *
      * @param location the index at which to put the specified object.
@@ -846,7 +876,7 @@ public class RealmList<E> extends AbstractList<E> implements OrderedRealmCollect
             } else if (isClassForRealmModel(clazz)) {
                 for (int i = 0; i < size(); i++) {
                     //noinspection ConstantConditions
-                    sb.append(((RealmObjectProxy) get(i)).realmGet$proxyState().getRow$realm().getIndex());
+                    sb.append(((RealmObjectProxy) get(i)).realmGet$proxyState().getRow$realm().getObjectKey());
                     sb.append(separator);
                 }
                 if (0 < size()) {
@@ -876,6 +906,21 @@ public class RealmList<E> extends AbstractList<E> implements OrderedRealmCollect
      * subscribed to. RealmList will continually be emitted as the RealmList is updated -
      * {@code onComplete} will never be called.
      * <p>
+     * Items emitted from Realm Flowables are frozen (See {@link #freeze()}. This means that they
+     * are immutable and can be read on any thread.
+     * <p>
+     * Realm Flowables always emit items from the thread holding the live RealmList. This means that if
+     * you need to do further processing, it is recommend to observe the values on a computation
+     * scheduler:
+     * <p>
+     * {@code
+     * list.asFlowable()
+     *   .observeOn(Schedulers.computation())
+     *   .map(rxResults -> doExpensiveWork(rxResults))
+     *   .observeOn(AndroidSchedulers.mainThread())
+     *   .subscribe( ... );
+     * }
+     * <p>
      * If you would like the {@code asFlowable()} to stop emitting items you can instruct RxJava to
      * only emit only the first item by using the {@code first()} operator:
      * <p>
@@ -887,9 +932,6 @@ public class RealmList<E> extends AbstractList<E> implements OrderedRealmCollect
      * }
      * </pre>
      * <p>
-     * <p>Note that when the {@link Realm} is accessed from threads other than where it was created,
-     * {@link IllegalStateException} will be thrown. Care should be taken when using different schedulers
-     * with {@code subscribeOn()} and {@code observeOn()}.
      *
      * @return RxJava Observable that only calls {@code onNext}. It will never call {@code onComplete} or {@code OnError}.
      * @throws UnsupportedOperationException if the required RxJava framework is not on the classpath or the
@@ -917,14 +959,25 @@ public class RealmList<E> extends AbstractList<E> implements OrderedRealmCollect
      * <p>
      * RealmList will continually be emitted as the RealmList is updated - {@code onComplete} will never be called.
      * <p>
-     * * Note that when the {@link Realm} is accessed from threads other than where it was created,
-     * {@link IllegalStateException} will be thrown. Care should be taken when using different schedulers
-     * with {@code subscribeOn()} and {@code observeOn()}. Consider using {@code Realm.where().find*Async()}
-     * instead.
+     * Items emitted from Realm Observables are frozen (See {@link #freeze()}. This means that they
+     * are immutable and can be read on any thread.
+     * <p>
+     * Realm Observables always emit items from the thread holding the live Realm. This means that if
+     * you need to do further processing, it is recommend to observe the values on a computation
+     * scheduler:
+     * <p>
+     * {@code
+     * list.asChangesetObservable()
+     *   .observeOn(Schedulers.computation())
+     *   .map((rxList, changes) -> doExpensiveWork(rxList, changes))
+     *   .observeOn(AndroidSchedulers.mainThread())
+     *   .subscribe( ... );
+     * }
      *
      * @return RxJava Observable that only calls {@code onNext}. It will never call {@code onComplete} or {@code OnError}.
      * @throws UnsupportedOperationException if the required RxJava framework is not on the classpath or the
      * corresponding Realm instance doesn't support RxJava.
+     * @throws IllegalStateException if the Realm wasn't opened on a Looper thread.
      * @see <a href="https://realm.io/docs/java/latest/#rxjava">RxJava and Realm</a>
      */
     public Observable<CollectionChange<RealmList<E>>> asChangesetObservable() {
@@ -1220,7 +1273,7 @@ public class RealmList<E> extends AbstractList<E> implements OrderedRealmCollect
 
         /**
          * Adding a new object to the RealmList. If the object is not already manage by Realm it will be transparently
-         * copied using {@link Realm#copyToRealmOrUpdate(RealmModel)}
+         * copied using {@link Realm#copyToRealmOrUpdate(RealmModel, ImportFlag...)}
          *
          * @see #add(Object)
          */
@@ -1454,7 +1507,7 @@ final class RealmModelListOperator<T> extends ManagedListOperator<T> {
     @Override
     public void appendValue(Object value) {
         final RealmObjectProxy proxy = (RealmObjectProxy) copyToRealmIfNeeded((RealmModel) value);
-        osList.addRow(proxy.realmGet$proxyState().getRow$realm().getIndex());
+        osList.addRow(proxy.realmGet$proxyState().getRow$realm().getObjectKey());
     }
 
     @Override
@@ -1468,7 +1521,7 @@ final class RealmModelListOperator<T> extends ManagedListOperator<T> {
         checkInsertIndex(index);
 
         RealmObjectProxy proxy = (RealmObjectProxy) copyToRealmIfNeeded((RealmModel) value);
-        osList.insertRow(index, proxy.realmGet$proxyState().getRow$realm().getIndex());
+        osList.insertRow(index, proxy.realmGet$proxyState().getRow$realm().getObjectKey());
     }
 
     @Override
@@ -1479,7 +1532,7 @@ final class RealmModelListOperator<T> extends ManagedListOperator<T> {
     @Override
     protected void setValue(int index, Object value) {
         RealmObjectProxy proxy = (RealmObjectProxy) copyToRealmIfNeeded((RealmModel) value);
-        osList.setRow(index, proxy.realmGet$proxyState().getRow$realm().getIndex());
+        osList.setRow(index, proxy.realmGet$proxyState().getRow$realm().getObjectKey());
     }
 
     // Transparently copies an unmanaged object or managed object from another Realm to the Realm backing this RealmList.

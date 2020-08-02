@@ -26,18 +26,18 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import io.realm.entities.StringOnly;
 import io.realm.exceptions.RealmFileException;
-import io.realm.exceptions.RealmMigrationNeededException;
 import io.realm.internal.sync.permissions.ObjectPermissionsModule;
 import io.realm.log.RealmLog;
 import io.realm.objectserver.utils.StringOnlyModule;
 import io.realm.rule.RunInLooperThread;
 import io.realm.rule.RunTestInLooperThread;
 
-import static io.realm.util.SyncTestUtils.createTestUser;
+import static io.realm.SyncTestUtils.createTestUser;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -125,6 +125,7 @@ public class SessionTests {
         SyncUser user = createTestUser();
         String url = "realm://objectserver.realm.io/default";
         final SyncConfiguration config = configFactory.createSyncConfigurationBuilder(user, url)
+                .clientResyncMode(ClientResyncMode.MANUAL)
                 .errorHandler((session, error) -> {
                     if (error.getErrorCode() != ErrorCode.CLIENT_RESET) {
                         fail("Wrong error " + error.toString());
@@ -156,6 +157,7 @@ public class SessionTests {
         SyncUser user = createTestUser();
         String url = "realm://objectserver.realm.io/default";
         final SyncConfiguration config = configFactory.createSyncConfigurationBuilder(user, url)
+                .clientResyncMode(ClientResyncMode.MANUAL)
                 .errorHandler((session, error) -> {
                     if (error.getErrorCode() != ErrorCode.CLIENT_RESET) {
                         fail("Wrong error " + error.toString());
@@ -194,6 +196,7 @@ public class SessionTests {
         SyncUser user = createTestUser();
         String url = "realm://objectserver.realm.io/default";
         final SyncConfiguration config = configFactory.createSyncConfigurationBuilder(user, url)
+                .clientResyncMode(ClientResyncMode.MANUAL)
                 .schema(StringOnly.class)
                 .errorHandler((session, error) -> {
                     if (error.getErrorCode() != ErrorCode.CLIENT_RESET) {
@@ -253,6 +256,7 @@ public class SessionTests {
         SyncUser user = createTestUser();
         String url = "realm://objectserver.realm.io/default";
         final SyncConfiguration config = configFactory.createSyncConfigurationBuilder(user, url)
+                .clientResyncMode(ClientResyncMode.MANUAL)
                 .errorHandler((session, error) -> {
                     if (error.getErrorCode() != ErrorCode.CLIENT_RESET) {
                         fail("Wrong error " + error.toString());
@@ -335,6 +339,7 @@ public class SessionTests {
         String url = "realm://objectserver.realm.io/default";
         final byte[] randomKey = TestHelper.getRandomKey();
         final SyncConfiguration config = configFactory.createSyncConfigurationBuilder(user, url)
+                .clientResyncMode(ClientResyncMode.MANUAL)
                 .encryptionKey(randomKey)
                 .modules(new StringOnlyModule())
                 .errorHandler((session, error) -> {
@@ -403,12 +408,105 @@ public class SessionTests {
 
     @Test
     @UiThreadTest
+    public void uploadAllLocalChanges_withTimeout_throwsOnUiThread() throws InterruptedException {
+        Realm realm = Realm.getInstance(configuration);
+        try {
+            SyncManager.getOrCreateSession(configuration, null).uploadAllLocalChanges(30, TimeUnit.SECONDS);
+            fail("Should throw an IllegalStateException on Ui Thread");
+        } catch (IllegalStateException ignored) {
+        } finally {
+            realm.close();
+        }
+    }
+
+    @Test
+    public void uploadAllLocalChanges_withTimeout_invalidParametersThrows() throws InterruptedException {
+        Realm realm = Realm.getInstance(configuration);
+        SyncSession session = SyncManager.getOrCreateSession(configuration, null);
+        try {
+            try {
+                session.uploadAllLocalChanges(-1, TimeUnit.SECONDS);
+                fail();
+            } catch (IllegalArgumentException ignored) {
+            }
+
+            try {
+                //noinspection ConstantConditions
+                session.uploadAllLocalChanges(1, null);
+                fail();
+            } catch (IllegalArgumentException ignored) {
+            }
+        } finally {
+            realm.close();
+        }
+    }
+
+    @Test
+    public void uploadAllLocalChanges_returnFalseWhenTimedOut() throws InterruptedException {
+        Realm realm = Realm.getInstance(configuration);
+        SyncSession session = SyncManager.getOrCreateSession(configuration, null);
+        try {
+            assertFalse(session.uploadAllLocalChanges(100, TimeUnit.MILLISECONDS));
+        } finally {
+            realm.close();
+        }
+    }
+
+    @Test
+    @UiThreadTest
     public void downloadAllServerChanges_throwsOnUiThread() throws InterruptedException {
         Realm realm = Realm.getInstance(configuration);
         try {
             SyncManager.getOrCreateSession(configuration, null).downloadAllServerChanges();
             fail("Should throw an IllegalStateException on Ui Thread");
         } catch (IllegalStateException ignored) {
+        } finally {
+            realm.close();
+        }
+    }
+
+    @Test
+    @UiThreadTest
+    public void downloadAllServerChanges_withTimeout_throwsOnUiThread() throws InterruptedException {
+        Realm realm = Realm.getInstance(configuration);
+        try {
+            SyncManager.getOrCreateSession(configuration, null).downloadAllServerChanges(30, TimeUnit.SECONDS);
+            fail("Should throw an IllegalStateException on Ui Thread");
+        } catch (IllegalStateException ignored) {
+        } finally {
+            realm.close();
+        }
+    }
+
+
+    @Test
+    public void downloadAllServerChanges_withTimeout_invalidParametersThrows() throws InterruptedException {
+        Realm realm = Realm.getInstance(configuration);
+        SyncSession session = SyncManager.getOrCreateSession(configuration, null);
+        try {
+            try {
+                session.downloadAllServerChanges(-1, TimeUnit.SECONDS);
+                fail();
+            } catch (IllegalArgumentException ignored) {
+            }
+
+            try {
+                //noinspection ConstantConditions
+                session.downloadAllServerChanges(1, null);
+                fail();
+            } catch (IllegalArgumentException ignored) {
+            }
+        } finally {
+            realm.close();
+        }
+    }
+
+    @Test
+    public void downloadAllServerChanges_returnFalseWhenTimedOut() throws InterruptedException {
+        Realm realm = Realm.getInstance(configuration);
+        SyncSession session = SyncManager.getOrCreateSession(configuration, null);
+        try {
+            assertFalse(session.downloadAllServerChanges(100, TimeUnit.MILLISECONDS));
         } finally {
             realm.close();
         }
@@ -432,11 +530,11 @@ public class SessionTests {
         TestHelper.TestLogger testLogger = new TestHelper.TestLogger();
         RealmLog.add(testLogger);
 
-        session.notifySessionError(3, "Unknown Error");
+        session.notifySessionError("unknown", 3, "Unknown Error");
         RealmLog.remove(testLogger);
 
         assertTrue(errorHandlerCalled.get());
-        assertEquals("Unknown error code: 3", testLogger.message);
+        assertEquals("Unknown error code: 'unknown:3'", testLogger.message);
 
         realm.close();
     }
@@ -456,5 +554,24 @@ public class SessionTests {
             assertThat(expected.getMessage(), CoreMatchers.containsString(
                     "No SyncSession found using the path : "));
         }
+    }
+
+    @Test
+    public void isConnected_falseForInvalidUser() {
+        Realm realm = Realm.getInstance(configuration);
+        SyncSession session = SyncManager.getSession(configuration);
+        try {
+            assertFalse(session.isConnected());
+        } finally {
+            realm.close();
+        }
+    }
+
+    @Test
+    public void stop_doesNotThrowIfCalledWhenRealmIsClosed() {
+        Realm realm = Realm.getInstance(configuration);
+        SyncSession session = SyncManager.getSession(configuration);
+        realm.close();
+        session.stop();
     }
 }

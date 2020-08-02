@@ -462,7 +462,6 @@ public class RealmAsyncQueryTests {
             public void run() {
                 // Manually call refresh, so the did_change will be triggered.
                 foregroundRealm.sharedRealm.refresh();
-                foregroundRealm.setAutoRefresh(true);
             }
         });
     }
@@ -1376,6 +1375,40 @@ public class RealmAsyncQueryTests {
         RealmResults<AllTypes> results = realm.where(AllTypes.class).findAllAsync();
         results.addChangeListener(listener);
         looperThread.keepStrongReference(results);
+    }
+
+    @Test
+    @RunTestInLooperThread
+    public void freezeAsyncResults() {
+        int DATA_SIZE = 10;
+        Realm realm = looperThread.getRealm();
+        populateTestRealm(realm, DATA_SIZE);
+        RealmResults<AllTypes> results = realm.where(AllTypes.class).findAllAsync();
+        looperThread.keepStrongReference(results);
+        assertFalse(results.isLoaded());
+        assertTrue(results.isValid());
+        assertEquals(0, results.size());
+        assertFalse(results.isFrozen());
+
+        RealmResults<AllTypes> frozenResults = results.freeze();
+        assertTrue(frozenResults.isFrozen());
+        assertFalse(frozenResults.isLoaded());
+        assertTrue(frozenResults.isValid());
+        assertEquals(0, frozenResults.size());
+
+        results.addChangeListener(new RealmChangeListener<RealmResults<AllTypes>>() {
+            @Override
+            public void onChange(RealmResults<AllTypes> results) {
+                assertTrue(results.isLoaded());
+                assertTrue(results.isValid());
+                assertEquals(DATA_SIZE, results.size());
+
+                assertFalse(frozenResults.isLoaded());
+                assertTrue(frozenResults.isValid());
+                assertEquals(0, frozenResults.size());
+                looperThread.testComplete();
+            }
+        });
     }
 
     // *** Helper methods ***

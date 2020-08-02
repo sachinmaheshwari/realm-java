@@ -37,10 +37,9 @@ import java.util.Map;
 import io.realm.entities.StringOnly;
 import io.realm.objectserver.utils.StringOnlyModule;
 import io.realm.rule.RunInLooperThread;
-import io.realm.util.SyncTestUtils;
 
-import static io.realm.util.SyncTestUtils.createNamedTestUser;
-import static io.realm.util.SyncTestUtils.createTestUser;
+import static io.realm.SyncTestUtils.createNamedTestUser;
+import static io.realm.SyncTestUtils.createTestUser;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
@@ -77,15 +76,10 @@ public class SyncConfigurationTests {
 
     @Test
     public void user_invalidUserThrows() {
-        try {
-            new SyncConfiguration.Builder(null, "realm://ros.realm.io/default");
-        } catch (IllegalArgumentException ignore) {
-        }
-
         SyncUser user = createTestUser(0); // Create user that has expired credentials
         try {
-            new SyncConfiguration.Builder(user, "realm://ros.realm.io/default");
-        } catch (IllegalArgumentException ignore) {
+            user.createConfiguration("realm://ros.realm.io/default");
+        } catch (IllegalStateException ignore) {
         }
     }
 
@@ -485,7 +479,7 @@ public class SyncConfigurationTests {
 
     @Test
     public void getDefaultConfiguration_isFullySynchronized() {
-        SyncUser user = SyncTestUtils.createTestUser();
+        SyncUser user = createTestUser();
         SyncConfiguration config = user.getDefaultConfiguration();
         assertFalse(config.isFullySynchronizedRealm());
     }
@@ -513,11 +507,60 @@ public class SyncConfigurationTests {
             String authUrl = (String) test[0];
             String realmUrl = (String) test[1];
 
-            SyncUser user = SyncTestUtils.createTestUser(authUrl);
+            SyncUser user = createTestUser(authUrl);
             SyncConfiguration config = user.getDefaultConfiguration();
             URI url = config.getServerUrl();
             assertEquals(realmUrl, url.toString());
             user.logOut();
+        }
+    }
+
+    @Test
+    public void clientResyncMode() {
+        SyncUser user = createTestUser();
+        String url = "realm://objectserver.realm.io/default";
+
+        // Default mode for full Realms
+        SyncConfiguration config = user.createConfiguration(url)
+                .fullSynchronization()
+                .build();
+        assertEquals(ClientResyncMode.RECOVER_LOCAL_REALM, config.getClientResyncMode());
+
+        // Default mode for query-based Realms
+        config = user.createConfiguration(url).build();
+        assertEquals(ClientResyncMode.MANUAL, config.getClientResyncMode());
+
+        // Manually set the mode
+        config = user.createConfiguration(url)
+                .clientResyncMode(ClientResyncMode.MANUAL)
+                .build();
+        assertEquals(ClientResyncMode.MANUAL, config.getClientResyncMode());
+    }
+
+    @Test
+    public void clientResyncMode_throwsOnNull() {
+        SyncUser user = createTestUser();
+        String url = "realm://objectserver.realm.io/default";
+        SyncConfiguration.Builder config = user.createConfiguration(url);
+        try {
+            //noinspection ConstantConditions
+            config.clientResyncMode(null);
+            fail();
+        } catch (IllegalArgumentException ignore) {
+        }
+    }
+
+    @Test
+    public void clientResyncMode_throwsIfNotManualForQueryBasedRealms() {
+        SyncUser user = createTestUser();
+        String url = "realm://objectserver.realm.io/default";
+        SyncConfiguration.Builder config = user.createConfiguration(url)
+                .clientResyncMode(ClientResyncMode.RECOVER_LOCAL_REALM);
+        try {
+            //noinspection ConstantConditions
+            config.build();
+            fail();
+        } catch (IllegalStateException ignore) {
         }
     }
 }

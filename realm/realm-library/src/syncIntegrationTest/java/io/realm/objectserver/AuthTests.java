@@ -30,6 +30,7 @@ import io.realm.SyncConfiguration;
 import io.realm.SyncCredentials;
 import io.realm.SyncManager;
 import io.realm.SyncSession;
+import io.realm.SyncTestUtils;
 import io.realm.SyncUser;
 import io.realm.SyncUserInfo;
 import io.realm.TestHelper;
@@ -41,7 +42,6 @@ import io.realm.objectserver.utils.Constants;
 import io.realm.objectserver.utils.StringOnlyModule;
 import io.realm.objectserver.utils.UserFactory;
 import io.realm.rule.RunTestInLooperThread;
-import io.realm.util.SyncTestUtils;
 
 import static junit.framework.Assert.assertEquals;
 import static junit.framework.Assert.assertNotNull;
@@ -128,7 +128,7 @@ public class AuthTests extends StandardIntegrationTest {
                         .build();
 
                 final Realm realm = Realm.getInstance(config);
-                looperThread.addTestRealm(realm);
+                looperThread.closeAfterTest(realm);
                 assertTrue(config.getUser().isValid());
                 looperThread.testComplete();
             }
@@ -153,59 +153,7 @@ public class AuthTests extends StandardIntegrationTest {
                         .build();
 
                 final Realm realm = Realm.getInstance(config);
-                looperThread.addTestRealm(realm);
-                assertFalse(Util.isEmptyString(config.getUser().getIdentity()));
-                assertTrue(config.getUser().isValid());
-                looperThread.testComplete();
-            }
-
-            @Override
-            public void onError(ObjectServerError error) {
-                fail("Login failed: " + error);
-            }
-        });
-    }
-
-    @Test
-    @RunTestInLooperThread
-    public void login_withNickname() {
-        SyncCredentials credentials = SyncCredentials.nickname("foo", false);
-        SyncUser.logInAsync(credentials, Constants.AUTH_URL, new SyncUser.Callback<SyncUser>() {
-            @Override
-            public void onSuccess(SyncUser user) {
-                assertFalse(user.isAdmin());
-                final SyncConfiguration config = configurationFactory.createSyncConfigurationBuilder(user, Constants.SYNC_SERVER_URL)
-                        .errorHandler((session, error) -> fail("Session failed: " + error))
-                        .build();
-
-                final Realm realm = Realm.getInstance(config);
-                looperThread.addTestRealm(realm);
-                assertFalse(Util.isEmptyString(config.getUser().getIdentity()));
-                assertTrue(config.getUser().isValid());
-                looperThread.testComplete();
-            }
-
-            @Override
-            public void onError(ObjectServerError error) {
-                fail("Login failed: " + error);
-            }
-        });
-    }
-
-    @Test
-    @RunTestInLooperThread
-    public void login_withNicknameAsAdmin() {
-        SyncCredentials credentials = SyncCredentials.nickname("foo", true);
-        SyncUser.logInAsync(credentials, Constants.AUTH_URL, new SyncUser.Callback<SyncUser>() {
-            @Override
-            public void onSuccess(SyncUser user) {
-                assertTrue(user.isAdmin());
-                final SyncConfiguration config = configurationFactory.createSyncConfigurationBuilder(user, Constants.SYNC_SERVER_URL)
-                        .errorHandler((session, error) -> fail("Session failed: " + error))
-                        .build();
-
-                final Realm realm = Realm.getInstance(config);
-                looperThread.addTestRealm(realm);
+                looperThread.closeAfterTest(realm);
                 assertFalse(Util.isEmptyString(config.getUser().getIdentity()));
                 assertTrue(config.getUser().isValid());
                 looperThread.testComplete();
@@ -827,12 +775,14 @@ public class AuthTests extends StandardIntegrationTest {
 
     @Test
     @RunTestInLooperThread
-    @Ignore("Depends on https://github.com/realm/realm-java/pull/5909")
+    @Ignore("{\"type\":\"https://docs.realm.io/server/troubleshoot/errors#not-enabled\",\"title\":\"The server was not configured " +
+            "to support the requested operation.\",\"status\":501,\"detail\"" +
+            ":\"The Password provider is not configured with an emailHandler.\",\"code\":803}")
     public void requestPasswordResetAsync() {
         String email = "foo@bar.baz";
         UserFactory.createUser(email).logOut();
 
-        // Currently no easy way to see if we actually get an email.
+        // Currently no easy way to see if we actually got an email.
         // Just verify that the network request can complete successfully.
         SyncUser.requestPasswordResetAsync(email, Constants.AUTH_URL, new SyncUser.Callback<Void>() {
             @Override
@@ -849,7 +799,9 @@ public class AuthTests extends StandardIntegrationTest {
 
     @Test
     @RunTestInLooperThread
-    @Ignore("Depends on https://github.com/realm/realm-java/pull/5909")
+    @Ignore("{\"type\":\"https://docs.realm.io/server/troubleshoot/errors#not-enabled\",\"title\":\"The server was not configured " +
+            "to support the requested operation.\",\"status\":501,\"detail\"" +
+            ":\"The Password provider is not configured with an emailHandler.\",\"code\":803}")
     public void requestResetPassword_unknownEmail() {
         SyncUser.requestPasswordResetAsync("unknown@realm.io", Constants.AUTH_URL, new SyncUser.Callback<Void>() {
             @Override
@@ -867,7 +819,9 @@ public class AuthTests extends StandardIntegrationTest {
 
     @Test
     @RunTestInLooperThread
-    @Ignore("Depends on https://github.com/realm/realm-java/pull/5909")
+    @Ignore("{\"type\":\"https://docs.realm.io/server/troubleshoot/errors#not-enabled\",\"title\":\"The server was not configured " +
+            "to support the requested operation.\",\"status\":501,\"detail\"" +
+            ":\"The Password provider is not configured with an emailHandler.\",\"code\":803}")
     public void completeResetPassword_invalidToken() {
         SyncUser.completePasswordResetAsync("invalidToken","newPassword", Constants.AUTH_URL, new SyncUser.Callback<Void>() {
             @Override
@@ -885,7 +839,9 @@ public class AuthTests extends StandardIntegrationTest {
 
     @Test
     @RunTestInLooperThread
-    @Ignore("Depends on https://github.com/realm/realm-java/pull/5909")
+    @Ignore("{\"type\":\"https://docs.realm.io/server/troubleshoot/errors#not-enabled\",\"title\":\"The server was not configured " +
+            "to support the requested operation.\",\"status\":501,\"detail\"" +
+            ":\"The Password provider is not configured with an emailHandler.\",\"code\":803}")
     public void requestEmailConfirmation() {
         String email = "foo@bar.baz";
         UserFactory.createUser(email).logOut();
@@ -906,7 +862,9 @@ public class AuthTests extends StandardIntegrationTest {
     }
     @Test
     @RunTestInLooperThread
-    @Ignore("Depends on https://github.com/realm/realm-java/pull/5909")
+    @Ignore("{\"type\":\"https://docs.realm.io/server/troubleshoot/errors#not-enabled\",\"title\":\"The server was not configured " +
+            "to support the requested operation.\",\"status\":501,\"detail\"" +
+            ":\"The Password provider is not configured with an emailHandler.\",\"code\":803}")
     public void requestEmailConfirmation_invalidEmail() {
         SyncUser.requestEmailConfirmationAsync("unknown@realm.io", Constants.AUTH_URL, new SyncUser.Callback<Void>() {
             @Override
@@ -925,7 +883,9 @@ public class AuthTests extends StandardIntegrationTest {
 
     @Test
     @RunTestInLooperThread
-    @Ignore("Depends on https://github.com/realm/realm-java/pull/5909")
+    @Ignore("{\"type\":\"https://docs.realm.io/server/troubleshoot/errors#not-enabled\",\"title\":\"The server was not configured " +
+            "to support the requested operation.\",\"status\":501,\"detail\"" +
+            ":\"The Password provider is not configured with an emailHandler.\",\"code\":803}")
     public void confirmEmail_invalidToken() {
         SyncUser.confirmEmailAsync("invalidToken", Constants.AUTH_URL, new SyncUser.Callback<Void>() {
             @Override

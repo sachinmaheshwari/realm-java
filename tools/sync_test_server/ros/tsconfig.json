@@ -12,12 +12,12 @@
       "declaration": true,
       "emitDecoratorMetadata": true,
       "experimentalDecorators": true,
+      "skipLibCheck": true,
       "lib": [
         "dom",
         "es6",
         "dom.iterable",
         "scripthost",
-        "esnext",
         "esnext.asynciterable"
       ]
     },

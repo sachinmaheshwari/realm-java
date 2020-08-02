@@ -74,7 +74,7 @@ public class RealmNotifierTests {
     private OsSharedRealm getSharedRealm(RealmConfiguration config) {
         OsRealmConfig.Builder configBuilder = new OsRealmConfig.Builder(config)
                 .autoUpdateNotification(true);
-        return OsSharedRealm.getInstance(configBuilder);
+        return OsSharedRealm.getInstance(configBuilder, OsSharedRealm.VersionID.LIVE);
     }
 
     @Test
@@ -100,8 +100,8 @@ public class RealmNotifierTests {
             public void onChange(OsSharedRealm sharedRealm) {
                 // Transaction has been committed in core, but commitTransaction hasn't returned in java.
                 assertFalse(commitReturns.get());
-                looperThread.testComplete();
                 sharedRealm.close();
+                looperThread.testComplete();
             }
         });
         sharedRealm.beginTransaction();

@@ -209,4 +209,5 @@ public class OsObjectSchemaInfo implements NativeObject {
 
     // Return nullptr if it doesn't have a primary key.
     private static native long nativeGetPrimaryKeyProperty(long nativePtr);
+
 }
